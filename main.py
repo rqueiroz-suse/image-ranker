@@ -2,6 +2,7 @@
 import FreeSimpleGUI as sg
 import os
 from PIL import Image, ImageTk
+from collections import Counter
 import io
 import random
 
@@ -22,7 +23,7 @@ PIL
 """
 
 # Get the folder containin:g the images from the user
-folder = sg.popup_get_folder('Image folder to open', default_path='')
+folder = sg.popup_get_folder('Image folder to open', default_path='./images')
 if not folder:
     sg.popup_cancel('Cancelling')
     raise SystemExit()
@@ -49,7 +50,7 @@ del flist0                             # no longer needed
 # ------------------------------------------------------------------------------
 
 
-def get_img_data(f, maxsize=(1200, 850), first=False):
+def get_img_data(f, maxsize=(720, 480), first=False):
     """Generate image data using PIL
     """
     img = Image.open(f)
@@ -62,6 +63,8 @@ def get_img_data(f, maxsize=(1200, 850), first=False):
     return ImageTk.PhotoImage(img)
 # ------------------------------------------------------------------------------
 
+votes = []
+headings = ["Image Name", "Number of Votes"]
 
 # make these 2 elements outside the layout as we want to "update" them later
 # initialize to the first file in the list
@@ -74,19 +77,26 @@ compare_image_elem = sg.Image(data=get_img_data(compare_filename, first=True), e
 filename_display_elem = sg.Text(filename, size=(80, 3))
 compare_filename_display_elem = sg.Text(compare_filename, size=(80, 3))
 file_num_display_elem = sg.Text('File 1 of {}'.format(num_files), size=(15, 1))
+votes_table = sg.Table(values=votes, headings=headings, key='-TABLE-', enable_events=True)
 
 # define layout, show and read the form
-col = [[filename_display_elem],
-       [compare_image_elem]]
+col = [
+    [filename_display_elem],
+    [compare_image_elem]
+    ]
 
-compare_col = [[compare_filename_display_elem],
-       [image_elem]]
+compare_col = [
+    [compare_filename_display_elem],
+    [image_elem]
+    ]
+
+votes_col = [[votes_table]]
 
 col_files = [[sg.Listbox(values=fnames, change_submits=True, size=(60, 30), key='listbox')],
              [sg.Button('Next', size=(8, 2)), sg.Button('Prev', size=(8, 2)), file_num_display_elem],
              [sg.Button('Random', size=(8,2))]]
 
-layout = [[sg.Column(col_files), sg.Column(col), sg.Column(compare_col)]]
+layout = [[sg.Column(col_files), sg.Column(col), sg.Column(compare_col), sg.Column(votes_col)]]
 
 window = sg.Window('Image Ranker', layout, return_keyboard_events=True,
                    location=(0, 0), use_default_focus=False)
@@ -94,7 +104,9 @@ window = sg.Window('Image Ranker', layout, return_keyboard_events=True,
 # loop reading the user input and displaying image, filename
 i = 0
 j = 0
+
 while True:
+    vote_counter = Counter(votes)
     # read the form
     event, values = window.read()
     print(event, values)
@@ -125,11 +137,15 @@ while True:
     elif event == '-BASEIMG-':
         i = random.randrange(0,num_files)
         filename = os.path.join(folder, fnames[i])
+        votes.append(fnames[i])
+        votes_table.update(vote_counter.items())
     elif event == '-COMPAREIMG-':
         j = random.randrange(0,num_files)
         while(j == i):
             j = random.randrange(0,num_files)        
-        compare_filename = os.path.join(folder, fnames[j])        
+        compare_filename = os.path.join(folder, fnames[j])    
+        votes.append(fnames[j])
+        votes_table.update(vote_counter.items())
     else:
         filename = os.path.join(folder, fnames[i])
 
@@ -141,5 +157,8 @@ while True:
     compare_filename_display_elem.update(compare_filename)
     # update page display
     file_num_display_elem.update('File {} of {}'.format(i+1, num_files))
+    
+    # votes_table.update(vote_counter)
+    print(vote_counter)
 
 window.close()
