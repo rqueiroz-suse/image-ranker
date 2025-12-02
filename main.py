@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from pathlib import Path
 import FreeSimpleGUI as sg
 import os
 from PIL import Image, ImageTk
@@ -38,6 +39,8 @@ flist0 = os.listdir(folder)
 fnames = [f for f in flist0 if os.path.isfile(
     os.path.join(folder, f)) and f.lower().endswith(img_types)]
 
+print(fnames)
+
 num_files = len(fnames)                # number of iamges found
 if num_files == 0:
     sg.popup('No files in folder')
@@ -63,6 +66,7 @@ def get_img_data(f, maxsize=(720, 480), first=False):
     return ImageTk.PhotoImage(img)
 # ------------------------------------------------------------------------------
 
+
 votes = []
 headings = ["Image Name", "Number of Votes"]
 
@@ -70,33 +74,27 @@ headings = ["Image Name", "Number of Votes"]
 # initialize to the first file in the list
 filename = os.path.join(folder, fnames[0])  # name of first file in list
 compare_filename = os.path.join(folder, fnames[0])
-if(num_files > 1):
+if(num_files >= 1):
     compare_filename = os.path.join(folder, fnames[1])
-image_elem = sg.Image(data=get_img_data(filename, first=True), enable_events=True, key="-BASEIMG-")
-compare_image_elem = sg.Image(data=get_img_data(compare_filename, first=True), enable_events=True, key="-COMPAREIMG-")
+image_elem = sg.Image(data=get_img_data(filename, first=True), enable_events=True, key='-BASEIMG-')
+compare_image_elem = sg.Image(data=get_img_data(compare_filename, first=True), enable_events=True, key='-COMPAREIMG-')
 filename_display_elem = sg.Text(filename, size=(80, 3))
 compare_filename_display_elem = sg.Text(compare_filename, size=(80, 3))
-file_num_display_elem = sg.Text('File 1 of {}'.format(num_files), size=(15, 1))
+# file_num_display_elem = sg.Text('File 1 of {}'.format(num_files), size=(15, 1))
 votes_table = sg.Table(values=votes, headings=headings, key='-TABLE-', enable_events=True)
 
 # define layout, show and read the form
-col = [
-    [filename_display_elem],
-    [compare_image_elem]
-    ]
+col = [[compare_image_elem],[filename_display_elem]]
 
-compare_col = [
-    [compare_filename_display_elem],
-    [image_elem]
-    ]
+compare_col = [[image_elem], [compare_filename_display_elem]]
 
 votes_col = [[votes_table]]
 
 col_files = [[sg.Listbox(values=fnames, change_submits=True, size=(60, 30), key='listbox')],
-             [sg.Button('Next', size=(8, 2)), sg.Button('Prev', size=(8, 2)), file_num_display_elem],
+            #  [sg.Button('Next', size=(8, 2)), sg.Button('Prev', size=(8, 2))],
              [sg.Button('Random', size=(8,2))]]
 
-layout = [[sg.Column(col_files), sg.Column(col), sg.Column(compare_col), sg.Column(votes_col)]]
+layout = [[sg.Column(col_files), sg.Column(compare_col), sg.Column(col), sg.Column(votes_col)]]
 
 window = sg.Window('Image Ranker', layout, return_keyboard_events=True,
                    location=(0, 0), use_default_focus=False)
@@ -106,23 +104,27 @@ i = 0
 j = 0
 
 while True:
-    vote_counter = Counter(votes)
+    
     # read the form
     event, values = window.read()
     print(event, values)
     # perform button and keyboard operations
     if event == sg.WIN_CLOSED:
         break
-    elif event in ('Next', 'MouseWheel:Down', 'Down:40', 'Next:34'):
-        i += 1
-        if i >= num_files:
-            i -= num_files
-        filename = os.path.join(folder, fnames[i])
-    elif event in ('Prev', 'MouseWheel:Up', 'Up:38', 'Prior:33'):
-        i -= 1
-        if i < 0:
-            i = num_files + i
-        filename = os.path.join(folder, fnames[i])
+    # elif event in ('Next', 'MouseWheel:Down', 'Down:40', 'Next:34'):
+    #     i += 1
+    #     if i >= num_files:
+    #         i -= num_files
+    #     filename = os.path.join(folder, fnames[i])
+    #     listbox = window['listbox']
+    #     listbox.update(set_to_index=[i], scroll_to_index=i)
+    # elif event in ('Prev', 'MouseWheel:Up', 'Up:38', 'Prior:33'):
+    #     i -= 1
+    #     if i < 0:
+    #         i = num_files + i
+    #     filename = os.path.join(folder, fnames[i])
+    #     listbox = window['listbox']
+    #     listbox.update(set_to_index=[i], scroll_to_index=i)
     elif event in ('Random'):
         i = random.randrange(0,num_files)
         j = random.randrange(0,num_files)
@@ -130,35 +132,37 @@ while True:
             j = random.randrange(0,num_files)        
         filename = os.path.join(folder, fnames[i])
         compare_filename = os.path.join(folder, fnames[j])
-    elif event == 'listbox':            # something from the listbox
-        f = values["listbox"][0]            # selected filename
-        filename = os.path.join(folder, f)  # read this file
-        i = fnames.index(f)                 # update running index
+    # elif event == 'listbox':            # something from the listbox
+    #     f = values['listbox'][0]            # selected filename
+    #     filename = os.path.join(folder, f)  # read this file
+    #     i = fnames.index(f)                 # update running index
+        
     elif event == '-BASEIMG-':
-        i = random.randrange(0,num_files)
-        filename = os.path.join(folder, fnames[i])
-        votes.append(fnames[i])
-        votes_table.update(vote_counter.items())
+        votes.append(filename)
+        filename_display_elem.update(filename)
+        image_elem.update(data=get_img_data(filename, first=True))
+        
+        
+        
+        
     elif event == '-COMPAREIMG-':
+        compare_filename_display_elem.update(compare_filename)
+        compare_image_elem.update(data=get_img_data(compare_filename, first=True))
+        votes.append(compare_filename)
         j = random.randrange(0,num_files)
         while(j == i):
             j = random.randrange(0,num_files)        
         compare_filename = os.path.join(folder, fnames[j])    
-        votes.append(fnames[j])
-        votes_table.update(vote_counter.items())
+        
     else:
         filename = os.path.join(folder, fnames[i])
 
     # update window with new image
-    image_elem.update(data=get_img_data(filename, first=True))
-    compare_image_elem.update(data=get_img_data(compare_filename, first=True))
-    # update window with filename
-    filename_display_elem.update(filename)
-    compare_filename_display_elem.update(compare_filename)
     # update page display
-    file_num_display_elem.update('File {} of {}'.format(i+1, num_files))
-    
-    # votes_table.update(vote_counter)
+    # file_num_display_elem.update('File {} of {}'.format(i+1, num_files))
+    vote_counter = Counter(votes)
+    votes_table.update(vote_counter.items())
+
     print(vote_counter)
 
 window.close()
