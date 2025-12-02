@@ -2,8 +2,9 @@ import FreeSimpleGUI as sg
 import os
 import io
 import random
-from PIL import Image, ImageTk
-from collections import Counter
+import csv
+from PIL import Image
+
 
 class ImageRanker:
     def __init__(self):
@@ -27,6 +28,7 @@ class ImageRanker:
         return len(self.image_files) >= 2
         # create sub list of image files (no sub folders, no wrong file types)
         
+
     def load_images(self): 
         if not self.folder_path:
             return
@@ -39,13 +41,14 @@ class ImageRanker:
         
         self.rankings = {img: 0 for img in self.image_files}
 
+
     def convert_to_bytes(self, file_path, maxsize=(720, 480)):
         """Generate image data using PIL
         """
-        if not isinstance(file_path, (str, os.PathLike)):
-            raise TypeError(f"Expected a path, got {type(file_path)}")
-        if not os.path.exists(file_path):
-            raise FileNotFoundError(f"Image file not found: {file_path}")
+        # if not isinstance(file_path, (str, os.PathLike)):
+        #     raise TypeError(f"Expected a path, got {type(file_path)}")
+        # if not os.path.exists(file_path):
+        #     raise FileNotFoundError(f"Image file not found: {file_path}")
         try:
             img = Image.open(file_path)
             img.thumbnail(maxsize)
@@ -79,6 +82,7 @@ class ImageRanker:
 
         return True
 
+
     def record_selection(self, selected_side):
         if selected_side == 'left':
             selected_image = self.current_left
@@ -90,6 +94,7 @@ class ImageRanker:
                 self.rankings[selected_image] = 0
             self.rankings[selected_image] += 1
     
+
     def get_ranking_display(self):
         sorted_rankings = sorted(
             self.rankings.items(),
@@ -104,18 +109,47 @@ class ImageRanker:
         max_filename_len = max(max_filename_len, 20)
 
         lines = [f"{'Image Filename':<{max_filename_len}} | Votes", "-" * (max_filename_len + 20)]
+        
         for rank, (image, votes) in enumerate(sorted_rankings, 1):
             lines.append(f"{image:<{max_filename_len}} | {votes}")
         
         return "\n".join(lines)
+    
+
+    def get_ranking_table_data(self):
+        sorted_rankings = sorted(
+            self.rankings.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        table_data = []
+        
+        for rank, (image, votes) in enumerate(sorted_rankings, 1):
+            table_data.append([rank, image, votes])
+        
+        return table_data
+
+
+    def generate_rank_csv(self, header, data):
+        filename = 'rank.csv'
+
+        with open(filename, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            writer.writerow(header)
+            writer.writerows(data[0:])
+
+        sg.popup_ok('CSV created successfully!')
+
 
     def run(self):
+
+        ranking_header = ['rank', 'image_name', 'votes']
 
         if not self.select_folder():
             sg.popup_error('Please select a valid folder')
             return
         
-
         layout = [
             [
                 sg.Column([
@@ -129,7 +163,20 @@ class ImageRanker:
             [sg.HorizontalSeparator()],
             [
                 sg.Button('Rankings', key='-RANKINGS-'),
+                sg.Button('Export ranking to CSV', key='-EXPORT_CSV-'),
                 sg.Button('Exit App', key='-EXIT-')
+            ],
+            [sg.Text('Current Ranking:')],
+            [
+                sg.Table(
+                    values=[],
+                    headings=ranking_header,
+                    key='-RANK_TABLE-',
+                    auto_size_columns=True,
+                    num_rows=10,
+                    expand_x=True,
+                    expand_y=False
+                )
             ] 
         ]
 
@@ -140,14 +187,14 @@ class ImageRanker:
             window.close()
             return
         
-        print(self.current_left)
-        print(self.current_right)
         img1_path = os.path.join(self.folder_path, self.current_left)
         img2_path = os.path.join(self.folder_path, self.current_right)
         img1_data = self.convert_to_bytes(img1_path)
         img2_data = self.convert_to_bytes(img2_path)
         window['-IMAGE1-'].update(data=img1_data)
         window['-IMAGE2-'].update(data=img2_data)
+
+        window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
 
         while True:
             event, values = window.read()
@@ -165,6 +212,7 @@ class ImageRanker:
                     img2_data = self.convert_to_bytes(img2_path)
                     window['-IMAGE1-'].update(data=img1_data)
                     window['-IMAGE2-'].update(data=img2_data)
+                    window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
             elif event == '-IMAGE2-':
                 self.record_selection('right')
                 new_img = self.get_random_image(self.current_right)
@@ -176,13 +224,13 @@ class ImageRanker:
                     img2_data = self.convert_to_bytes(img2_path)
                     window['-IMAGE1-'].update(data=img1_data)
                     window['-IMAGE2-'].update(data=img2_data)
+                    window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
             elif event == '-RANKINGS-':
-                ranking_text = self.get_ranking_display()
-                sg.popup_scrolled(
-                    'Current Rankings',
-                    ranking_text,
-                    size=(60, 20)
-                    )
+                window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
+            elif event == '-EXPORT_CSV-':
+                window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
+                self.generate_rank_csv(ranking_header, self.get_ranking_table_data())
+
         window.close()
 
 
