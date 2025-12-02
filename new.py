@@ -3,7 +3,11 @@ import os
 import io
 import random
 import csv
+import google.generativeai as genai
 from PIL import Image
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class ImageRanker:
@@ -45,10 +49,6 @@ class ImageRanker:
     def convert_to_bytes(self, file_path, maxsize=(720, 480)):
         """Generate image data using PIL
         """
-        # if not isinstance(file_path, (str, os.PathLike)):
-        #     raise TypeError(f"Expected a path, got {type(file_path)}")
-        # if not os.path.exists(file_path):
-        #     raise FileNotFoundError(f"Image file not found: {file_path}")
         try:
             img = Image.open(file_path)
             img.thumbnail(maxsize)
@@ -142,8 +142,68 @@ class ImageRanker:
         sg.popup_ok('CSV created successfully!')
 
 
-    def run(self):
+    def get_image_eval(self, api_key):
+        gemini_key = api_key
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel(model_name='gemini-2.5-flash')
+        filename = os.path.join(self.folder_path, self.current_left)
+        image_for_gemini = Image.open(filename)
+        response = model.generate_content(['Rate this image for sharpness on a scale of 0-10', image_for_gemini])
+        formatted_text = f'Gemini evaluation for {filename}:\n\n {response.text}'
+        layout = [
+            [sg.Text(text=formatted_text)],
+            [sg.HorizontalSeparator()],
+            [
+                sg.Button('Copy to Clipboard', key='-COPY_TO_CLIPBOARD-'),
+                sg.Button("Close")
+            ]
+        ]
+        window = sg.Window("Gemini - Image Evaluation", layout)
 
+        while True: # 
+            sec_event, sec_values = window.read()
+            if sec_event == sg.WIN_CLOSED or sec_event == "Close":
+                break
+            elif sec_event == '-COPY_TO_CLIPBOARD-':
+                sg.clipboard_set(f'Gemini evaluation for {filename}:\n\n {response.text}')
+                sg.popup(f'Text copied to clipboard!')
+
+        window.close()
+    
+
+    def get_image_comparison(self, api_key):
+        gemini_key = api_key
+        genai.configure(api_key=gemini_key)
+        model = genai.GenerativeModel(model_name='gemini-2.5-flash')
+        file1 = os.path.join(self.folder_path, self.current_left)
+        file2 = os.path.join(self.folder_path, self.current_right)
+        image1 = Image.open(file1)
+        image2 = Image.open(file2)
+        response = model.generate_content(['Compare these two images and indicate which one is sharper', image1, image2])
+        formatted_text = f"Gemini comparison for {file1} vs {file2}:\n\n {response.text}"
+        layout = [
+            [sg.Text(formatted_text)],
+            [sg.HorizontalSeparator()],
+            [
+                sg.Button('Copy to Clipboard', key='-COPY_TO_CLIPBOARD-'),
+                sg.Button("Close")
+            ]
+        ]
+        window = sg.Window("Gemini - Image Comparison", layout)
+
+        while True: # 
+            sec_event, sec_values = window.read()
+            if sec_event == sg.WIN_CLOSED or sec_event == "Close":
+                break
+            elif sec_event == '-COPY_TO_CLIPBOARD-':
+                sg.clipboard_set(formatted_text)
+                sg.popup(f'Text copied to clipboard!')
+
+        window.close()
+
+
+    def run(self):
+        api_key = os.getenv("GEMINI_API_KEY")
         ranking_header = ['rank', 'image_name', 'votes']
 
         if not self.select_folder():
@@ -162,7 +222,8 @@ class ImageRanker:
             ],
             [sg.HorizontalSeparator()],
             [
-                sg.Button('Rankings', key='-RANKINGS-'),
+                sg.Button('Gemini Eval - left photo', key='-EVAL_LEFT_PHOTO-'),
+                sg.Button('Gemini Comparison', key='-COMPARE_PHOTO-'),
                 sg.Button('Export ranking to CSV', key='-EXPORT_CSV-'),
                 sg.Button('Exit App', key='-EXIT-')
             ],
@@ -184,6 +245,11 @@ class ImageRanker:
 
         if not self.update_images():
             sg.popup_error("Any images were found!")
+            window.close()
+            return
+        
+        if not api_key:
+            sg.popup_error('No Gemini Key in .env! Cannot perform AI evaluation.')
             window.close()
             return
         
@@ -225,12 +291,15 @@ class ImageRanker:
                     window['-IMAGE1-'].update(data=img1_data)
                     window['-IMAGE2-'].update(data=img2_data)
                     window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
-            elif event == '-RANKINGS-':
-                window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
+            
             elif event == '-EXPORT_CSV-':
                 window['-RANK_TABLE-'].update(values=self.get_ranking_table_data())
                 self.generate_rank_csv(ranking_header, self.get_ranking_table_data())
-
+            elif event == '-EVAL_LEFT_PHOTO-':
+                self.get_image_eval(api_key)
+            elif event == '-COMPARE_PHOTO-':
+                self.get_image_comparison(api_key)
+        
         window.close()
 
 
