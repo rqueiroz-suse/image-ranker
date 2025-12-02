@@ -89,6 +89,25 @@ class ImageRanker:
             if selected_image not in self.rankings:
                 self.rankings[selected_image] = 0
             self.rankings[selected_image] += 1
+    
+    def get_ranking_display(self):
+        sorted_rankings = sorted(
+            self.rankings.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        if not sorted_rankings:
+            return "Empty ranking"
+        
+        max_filename_len = max(len(img) for img, _ in sorted_rankings) if sorted_rankings else 30
+        max_filename_len = max(max_filename_len, 20)
+
+        lines = [f"{'Image Filename':<{max_filename_len}} | Votes", "-" * (max_filename_len + 20)]
+        for rank, (image, votes) in enumerate(sorted_rankings, 1):
+            lines.append(f"{image:<{max_filename_len}} | {votes}")
+        
+        return "\n".join(lines)
 
     def run(self):
 
@@ -106,6 +125,11 @@ class ImageRanker:
                 sg.Column([
                     [sg.Image(key='-IMAGE2-', size=(720, 480), enable_events=True)]
                 ], element_justification='center')
+            ],
+            [sg.HorizontalSeparator()],
+            [
+                sg.Button('Rankings', key='-RANKINGS-'),
+                sg.Button('Exit App', key='-EXIT-')
             ] 
         ]
 
@@ -128,7 +152,7 @@ class ImageRanker:
         while True:
             event, values = window.read()
 
-            if event == sg.WIN_CLOSED:
+            if event in (sg.WIN_CLOSED, '-EXIT-'):
                 break
             elif event == '-IMAGE1-':
                 self.record_selection('left')
@@ -152,7 +176,13 @@ class ImageRanker:
                     img2_data = self.convert_to_bytes(img2_path)
                     window['-IMAGE1-'].update(data=img1_data)
                     window['-IMAGE2-'].update(data=img2_data)
-        
+            elif event == '-RANKINGS-':
+                ranking_text = self.get_ranking_display()
+                sg.popup_scrolled(
+                    'Current Rankings',
+                    ranking_text,
+                    size=(60, 20)
+                    )
         window.close()
 
 
